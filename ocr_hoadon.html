@@ -76,7 +76,7 @@
                         <div class="text-5xl text-gray-400 mb-4">📷</div>
                         <p class="text-xl font-medium text-gray-700 mb-2">Kéo thả file vào đây</p>
                         <p class="text-gray-400 text-sm">Hoặc nhấn để chọn file</p>
-                        <input type="file" id="fileInput" accept="image/*,.pdf" class="hidden" onchange="handleFileUpload(event)">
+                        <input type="file" id="fileInput" accept="image/*,.jpg,.jpeg,.png,.gif,.bmp,.webp,.tiff,.svg,.pdf" class="hidden" onchange="handleFileUpload(event)">
                     </div>
                     
                     <!-- Camera Modal -->
@@ -359,8 +359,14 @@
         function parseReceiptFallback(text) {
             const lines = text.split('\n').filter(line => line.trim());
             
+            // Tìm tổng tiền
             let total = 0;
-            const totalPatterns = [/tổng.*?(\d{1,3}(?:[,.]?\d{3})*)/i, /total.*?(\d{1,3}(?:[,.]?\d{3})*)/i];
+            const totalPatterns = [
+                /tổng.*?(\d{1,3}(?:[,.]?\d{3})*)/i,
+                /total.*?(\d{1,3}(?:[,.]?\d{3})*)/i,
+                /thành tiền.*?(\d{1,3}(?:[,.]?\d{3})*)/i,
+                /cộng.*?(\d{1,3}(?:[,.]?\d{3})*)/i
+            ];
             for (const line of lines) {
                 for (const pattern of totalPatterns) {
                     const match = line.match(pattern);
@@ -372,12 +378,96 @@
                 if (total > 0) break;
             }
             
-            let storeName = lines.find(line => line.length > 3 && !line.match(/^\d/)) || '';
-            let date = '';
-            const dateMatch = text.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/);
-            if (dateMatch) date = dateMatch[1];
+            // Cải thiện nhận diện tên cửa hàng
+            let storeName = '';
+            const storeKeywords = ['cửa hàng', 'siêu thị', 'shop', 'store', 'mart', 'market', 'công ty', 'co.', 'ltd', 'cafe', 'ca phe', 'restaurant'];
+            const skipPatterns = [
+                /^\d+$/, // chỉ số
+                /^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}$/, // ngày tháng
+                /^\d{1,2}:\d{2}/, // thời gian
+                /hóa đơn/i,
+                /bill/i,
+                /receipt/i,
+                /^[\s\-_=\/]+$/, // ký tự đặc biệt
+                /^\d+[,.]\d+$/, // số tiền
+                /tổng|total|cộng|thành tiền/i,
+                /^[a-z]\s[a-z]$/i, // các ký tự đơn lẻ như "i w"
+                /^\/\s/, // bắt đầu bằng dấu /
+                /^đdt:|^q\.|^tp\./i // địa chỉ, điện thoại
+            ];
             
-            return { storeName, date, total, items: [] };
+            // Tìm tên cửa hàng trong 10 dòng đầu với hệ thống điểm
+            const candidateNames = [];
+            
+            for (let i = 0; i < Math.min(10, lines.length); i++) {
+                const line = lines[i].trim();
+                
+                // Bỏ qua dòng không phù hợp
+                if (line.length < 3 || skipPatterns.some(pattern => pattern.test(line))) {
+                    continue;
+                }
+                
+                // Kiểm tra tính hợp lệ
+                const hasLetters = /[a-zA-ZÀ-ỹ]/.test(line);
+                const notOnlyNumbers = !/^\d+$/.test(line);
+                const reasonableLength = line.length >= 3 && line.length <= 60;
+                const notAddress = !/^(đường|phường|quận|tp|thành phố|district)/i.test(line);
+                
+                if (hasLetters && notOnlyNumbers && reasonableLength && notAddress) {
+                    let score = 0;
+                    
+                    // Điểm cao nếu có từ khóa cửa hàng
+                    if (storeKeywords.some(keyword => line.toLowerCase().includes(keyword))) {
+                        score += 10;
+                    }
+                    
+                    // Điểm cao nếu ở vị trí đầu
+                    score += (10 - i);
+                    
+                    // Điểm cao nếu có chữ hoa
+                    if (/[A-ZÀ-Ỹ]/.test(line)) {
+                        score += 5;
+                    }
+                    
+                    // Điểm cao nếu có nhiều từ (tên thương hiệu thường có nhiều từ)
+                    const wordCount = line.split(/\s+/).length;
+                    if (wordCount >= 2 && wordCount <= 5) {
+                        score += 3;
+                    }
+                    
+                    candidateNames.push({ name: line, score, position: i });
+                }
+            }
+            
+            // Chọn ứng viên có điểm cao nhất
+            if (candidateNames.length > 0) {
+                candidateNames.sort((a, b) => b.score - a.score);
+                storeName = candidateNames[0].name;
+            }
+            
+            // Làm sạch tên cửa hàng
+            storeName = storeName.replace(/[\-_=\/\\]{2,}/g, '').replace(/^[\s\/\\]+|[\s\/\\]+$/g, '').trim();
+            
+            // Tìm ngày
+            let date = '';
+            const datePatterns = [
+                /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/,
+                /(\d{2,4}[\/\-]\d{1,2}[\/\-]\d{1,2})/
+            ];
+            for (const pattern of datePatterns) {
+                const match = text.match(pattern);
+                if (match) {
+                    date = match[1];
+                    break;
+                }
+            }
+            
+            return { 
+                storeName: storeName || 'Không xác định', 
+                date: date || new Date().toISOString().split('T')[0], 
+                total, 
+                items: [] 
+            };
         }
 
         function clearResults() {

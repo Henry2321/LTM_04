@@ -36,9 +36,10 @@
             <div class="bg-blue-50 rounded-lg p-4 mb-6">
                 <div class="text-sm font-medium text-blue-800 mb-2">Hướng dẫn nói:</div>
                 <div class="text-sm text-blue-700 space-y-1">
-                    <div>• "Cửa hàng ABC, ngày 15/12/2024, tổng tiền 150000"</div>
-                    <div>• "Siêu thị XYZ, hôm nay, 250 nghìn đồng"</div>
-                    <div>• "Mua tại shop DEF, 500k"</div>
+                    <div>• "Hôm nay tôi mua đồ ăn hết 50 nghìn"</div>
+                    <div>• "Tôi chi tiền ăn uống 100k"</div>
+                    <div>• "Mua sắm quần áo 200 nghìn đồng"</div>
+                    <div>• "Đi xem phim giải trí 150k"</div>
                 </div>
             </div>
 
@@ -161,102 +162,114 @@
         function parseVoiceToReceipt(text) {
             const lowerText = text.toLowerCase();
             
-            // Tìm tên cửa hàng
-            let storeName = '';
-            const storePatterns = [
-                /cửa hàng ([^,]+)/i,
-                /siêu thị ([^,]+)/i,
-                /shop ([^,]+)/i,
-                /tại ([^,]+)/i,
-                /mua ở ([^,]+)/i
-            ];
-            for (const pattern of storePatterns) {
-                const match = text.match(pattern);
-                if (match) {
-                    storeName = match[1].trim();
-                    break;
+            // Nhận diện danh mục từ câu nói
+            const categoryKeywords = {
+                'Ăn uống': ['ăn', 'uống', 'đồ ăn', 'thức ăn', 'cơm', 'phở', 'bún', 'bánh', 'nước', 'cafe', 'trà', 'bia', 'rượu', 'nhà hàng', 'quán', 'buffet'],
+                'Mua sắm': ['mua sắm', 'shopping', 'quần áo', 'giày', 'túi', 'đồ dùng', 'mỹ phẩm', 'trang sức', 'đồ gia dụng'],
+                'Giải trí': ['giải trí', 'xem phim', 'karaoke', 'game', 'du lịch', 'vui chơi', 'thể thao', 'gym', 'massage'],
+                'Di chuyển': ['xe', 'taxi', 'grab', 'xăng', 'dầu', 'vé', 'tàu', 'máy bay', 'xe buýt', 'gửi xe'],
+                'Y tế': ['thuốc', 'bệnh viện', 'khám', 'chữa', 'y tế', 'sức khỏe', 'nha khoa'],
+                'Học tập': ['học', 'sách', 'vở', 'bút', 'học phí', 'khóa học', 'giáo dục'],
+                'Nhà cửa': ['nhà', 'điện', 'nước', 'gas', 'internet', 'thuê nhà', 'sửa chữa'],
+                'Khác': []
+            };
+            
+            let detectedCategory = 'Khác';
+            let maxMatches = 0;
+            
+            for (const [category, keywords] of Object.entries(categoryKeywords)) {
+                let matches = 0;
+                for (const keyword of keywords) {
+                    if (lowerText.includes(keyword)) {
+                        matches++;
+                    }
+                }
+                if (matches > maxMatches) {
+                    maxMatches = matches;
+                    detectedCategory = category;
                 }
             }
             
-            // Tìm ngày
-            let date = '';
-            const dateMatch = text.match(/(\d{1,2})[\s\/\-](\d{1,2})[\s\/\-](\d{2,4})/);
-            if (dateMatch) {
-                const day = dateMatch[1].padStart(2, '0');
-                const month = dateMatch[2].padStart(2, '0');
-                let year = dateMatch[3];
-                if (year.length === 2) year = '20' + year;
-                date = `${year}-${month}-${day}`;
-            } else if (text.includes('hôm nay')) {
-                date = new Date().toISOString().split('T')[0];
-            }
-            
-            // Tìm tổng tiền - cải thiện
+            // Tìm số tiền
             let total = 0;
             
-            // Chuyển đổi số bằng chữ
-            const textToNumber = {
-                'một': '1', 'hai': '2', 'ba': '3', 'bốn': '4', 'năm': '5',
-                'sáu': '6', 'bảy': '7', 'tám': '8', 'chín': '9', 'mười': '10',
-                'trăm': '00', 'nghìn': '000', 'ngàn': '000', 'triệu': '000000'
-            };
+            // Chuyển đổi số bằng chữ thành số
+            let processedText = lowerText
+                .replace(/một/g, '1')
+                .replace(/hai/g, '2')
+                .replace(/ba/g, '3')
+                .replace(/bốn/g, '4')
+                .replace(/năm/g, '5')
+                .replace(/sáu/g, '6')
+                .replace(/bảy/g, '7')
+                .replace(/tám/g, '8')
+                .replace(/chín/g, '9')
+                .replace(/mười/g, '10')
+                .replace(/trăm/g, '00')
+                .replace(/nghìn|ngàn/g, '000')
+                .replace(/triệu/g, '000000');
             
-            let processedText = text.toLowerCase();
-            for (const [word, num] of Object.entries(textToNumber)) {
-                processedText = processedText.replace(new RegExp(word, 'g'), num);
-            }
-            
+            // Tìm số tiền trong câu
             const moneyPatterns = [
-                /tổng\s*(?:tiền|cộng|số tiền)?\s*(\d+(?:[,.]?\d{3})*)/i,
-                /(?:là|bằng|có)\s*(\d+(?:[,.]?\d{3})*)/i,
-                /(\d+(?:[,.]?\d{3})*)\s*(?:đồng|vnđ|vnd|k|nghìn|ngàn)/i,
-                /(?:tiền|số tiền|thành tiền)\s*(\d+(?:[,.]?\d{3})*)/i,
+                /(\d+)\s*(?:k|nghìn|ngàn)/i,
+                /(\d+)\s*(?:đồng|vnđ|vnd)/i,
+                /(?:hết|chi|tiền|giá)\s*(\d+)/i,
                 /(\d{4,})/g
             ];
             
-            const allNumbers = [];
-            
             for (const pattern of moneyPatterns) {
-                if (pattern.global) {
-                    const matches = [...processedText.matchAll(pattern)];
-                    for (const match of matches) {
-                        const num = parseInt(match[0].replace(/[,.]/g, ''));
-                        if (num > 0) allNumbers.push(num);
+                const match = processedText.match(pattern);
+                if (match) {
+                    let amount = parseInt(match[1]);
+                    // Nếu có 'k' hoặc 'nghìn' thì nhân với 1000
+                    if (pattern.source.includes('k|nghìn|ngàn') && amount < 1000) {
+                        amount *= 1000;
                     }
-                } else {
-                    const match = processedText.match(pattern);
-                    if (match) {
-                        const num = parseInt(match[1].replace(/[,.]/g, ''));
-                        if (num > 0) allNumbers.push(num);
+                    if (amount > total) {
+                        total = amount;
                     }
                 }
             }
             
-            if (allNumbers.length > 0) {
-                total = Math.max(...allNumbers);
-            }
-            
             return {
-                storeName: storeName || 'Không xác định',
-                date: date || new Date().toISOString().split('T')[0],
-                total: total
+                category: detectedCategory,
+                amount: total,
+                description: `Chi tiêu ${detectedCategory.toLowerCase()} - Nhập bằng giọng nói`,
+                date: new Date().toISOString().split('T')[0]
             };
         }
 
         function displayResults(data) {
             const html = `
-                <div class="bg-blue-50 p-6 rounded-lg text-center">
-                    <div class="text-sm font-medium text-blue-600 mb-2">Cửa hàng</div>
-                    <div class="text-3xl font-bold text-blue-800">${data.storeName}</div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-green-50 p-6 rounded-lg text-center">
+                        <div class="text-sm font-medium text-green-600 mb-2">Danh Mục</div>
+                        <div class="text-2xl font-bold text-green-800">${data.category}</div>
+                    </div>
+                    <div class="bg-blue-50 p-6 rounded-lg text-center">
+                        <div class="text-sm font-medium text-blue-600 mb-2">Số Tiền</div>
+                        <div class="text-2xl font-bold text-blue-800">${formatCurrency(data.amount)}</div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg mt-4">
+                    <div class="text-sm font-medium text-gray-600 mb-2">Mô Tả</div>
+                    <div class="text-gray-800">${data.description}</div>
                 </div>
             `;
             
             document.getElementById('results').innerHTML = html;
             document.getElementById('resultsCard').classList.remove('hidden');
         }
+        
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('vi-VN', {
+                style: 'currency',
+                currency: 'VND'
+            }).format(amount);
+        }
 
         async function saveExpense() {
-            if (!currentData || !currentData.total) {
+            if (!currentData || !currentData.amount) {
                 alert('Không có thông tin để lưu!');
                 return;
             }
@@ -269,22 +282,67 @@
             }
             
             try {
-                const response = await fetch('http://localhost:5000/api/giao-dich', {
+                // Tìm hoặc tạo danh mục
+                const API_URL = 'https://ltm-finalq2.onrender.com/api';
+                
+                // Lấy danh sách danh mục hiện có
+                const categoriesResponse = await fetch(`${API_URL}/danh-muc`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                let categoryId = null;
+                if (categoriesResponse.ok) {
+                    const categories = await categoriesResponse.json();
+                    const existingCategory = categories.find(cat => 
+                        cat.ten_danh_muc.toLowerCase() === currentData.category.toLowerCase() && 
+                        cat.loai_danh_muc === 'Chi tiêu'
+                    );
+                    
+                    if (existingCategory) {
+                        categoryId = existingCategory.id;
+                    } else {
+                        // Tạo danh mục mới
+                        const createCategoryResponse = await fetch(`${API_URL}/danh-muc`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify({
+                                loai_danh_muc: 'Chi tiêu',
+                                ten_danh_muc: currentData.category,
+                                mo_ta: `Danh mục ${currentData.category} tự động tạo từ giọng nói`
+                            })
+                        });
+                        
+                        if (createCategoryResponse.ok) {
+                            const newCategory = await createCategoryResponse.json();
+                            categoryId = newCategory.id;
+                        }
+                    }
+                }
+                
+                // Lưu giao dịch
+                const transactionData = {
+                    so_tien: currentData.amount,
+                    mo_ta: currentData.description
+                };
+                
+                if (categoryId) {
+                    transactionData.danh_muc_id = categoryId;
+                }
+                
+                const response = await fetch(`${API_URL}/giao-dich`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
                     },
-                    body: JSON.stringify({
-                        loai: 'chi',
-                        so_tien: currentData.total,
-                        mo_ta: `Hóa đơn từ ${currentData.storeName} - Nhập bằng giọng nói`,
-                        ngay: currentData.date
-                    })
+                    body: JSON.stringify(transactionData)
                 });
                 
                 if (response.ok) {
-                    alert('Đã lưu chi tiêu thành công!');
+                    alert(`Đã lưu chi tiêu ${currentData.category} thành công!`);
                     document.getElementById('saveBtn').disabled = true;
                     document.getElementById('saveBtn').textContent = 'Đã lưu';
                 } else {
