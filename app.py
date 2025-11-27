@@ -11,7 +11,7 @@ from ai_module import full_financial_analysis
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=['*'], allow_headers=['Content-Type', 'Authorization'])
 # Database configuration with fallback
 database_url = os.getenv('DATABASE_URL')
 if database_url and database_url.startswith('postgres://'):
