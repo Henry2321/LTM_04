@@ -33,7 +33,6 @@ class VaiTro(db.Model):
 class NguoiDung(db.Model):
     __tablename__ = 'nguoi_dung'
     id = db.Column(db.Integer, primary_key=True)
-    vai_tro_id = db.Column(db.Integer, db.ForeignKey('vai_tro.id'), default=2)
     ho_ten = db.Column(db.String(100), nullable=False)
     email = db.Column(db.String(100), unique=True, nullable=False)
     mat_khau = db.Column(db.String(255), nullable=False)
