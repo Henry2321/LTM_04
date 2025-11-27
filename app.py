@@ -88,48 +88,52 @@ class VayNo(db.Model):
 # Auth Routes
 @app.route('/api/auth/register', methods=['POST'])
 def register():
-    data = request.get_json()
-    
-    if not data or not data.get('email') or not data.get('mat_khau') or not data.get('ho_ten'):
-        return jsonify({'message': 'Thiếu thông tin'}), 400
-    
-    if NguoiDung.query.filter_by(email=data['email']).first():
-        return jsonify({'message': 'Email đã tồn tại'}), 400
-    
-    hashed_password = bcrypt.hashpw(data['mat_khau'].encode('utf-8'), bcrypt.gensalt())
-    
-    user = NguoiDung(
-        ho_ten=data['ho_ten'],
-        email=data['email'],
-        mat_khau=hashed_password.decode('utf-8'),
-        so_du=data.get('so_du', 0)
-    )
-    
-    db.session.add(user)
-    db.session.flush()
-    
-    # Tạo danh mục mặc định
-    default_categories = [
-        {'loai': 'Chi tiêu', 'ten': 'Ăn uống', 'icon': '🍔'},
-        {'loai': 'Chi tiêu', 'ten': 'Giải trí', 'icon': '🎮'},
-        {'loai': 'Chi tiêu', 'ten': 'Mua sắm', 'icon': '🛒'},
-        {'loai': 'Chi tiêu', 'ten': 'Di chuyển', 'icon': '🚗'},
-        {'loai': 'Thu nhập', 'ten': 'Lương', 'icon': '💰'},
-        {'loai': 'Thu nhập', 'ten': 'Thưởng', 'icon': '🎁'},
-    ]
-    
-    for cat in default_categories:
-        danh_muc = DanhMuc(
-            nguoi_dung_id=user.id,
-            loai_danh_muc=cat['loai'],
-            ten_danh_muc=cat['ten'],
-            icon=cat['icon']
+    try:
+        data = request.get_json()
+        
+        if not data or not data.get('email') or not data.get('mat_khau') or not data.get('ho_ten'):
+            return jsonify({'message': 'Thiếu thông tin'}), 400
+        
+        if NguoiDung.query.filter_by(email=data['email']).first():
+            return jsonify({'message': 'Email đã tồn tại'}), 400
+        
+        hashed_password = bcrypt.hashpw(data['mat_khau'].encode('utf-8'), bcrypt.gensalt())
+        
+        user = NguoiDung(
+            ho_ten=data['ho_ten'],
+            email=data['email'],
+            mat_khau=hashed_password.decode('utf-8'),
+            so_du=data.get('so_du', 0)
         )
-        db.session.add(danh_muc)
-    
-    db.session.commit()
-    
-    return jsonify({'message': 'Đăng ký thành công', 'user_id': user.id}), 201
+        
+        db.session.add(user)
+        db.session.flush()
+        
+        # Tạo danh mục mặc định
+        default_categories = [
+            {'loai': 'Chi tiêu', 'ten': 'Ăn uống', 'icon': '🍔'},
+            {'loai': 'Chi tiêu', 'ten': 'Giải trí', 'icon': '🎮'},
+            {'loai': 'Chi tiêu', 'ten': 'Mua sắm', 'icon': '🛒'},
+            {'loai': 'Chi tiêu', 'ten': 'Di chuyển', 'icon': '🚗'},
+            {'loai': 'Thu nhập', 'ten': 'Lương', 'icon': '💰'},
+            {'loai': 'Thu nhập', 'ten': 'Thưởng', 'icon': '🎁'},
+        ]
+        
+        for cat in default_categories:
+            danh_muc = DanhMuc(
+                nguoi_dung_id=user.id,
+                loai_danh_muc=cat['loai'],
+                ten_danh_muc=cat['ten'],
+                icon=cat['icon']
+            )
+            db.session.add(danh_muc)
+        
+        db.session.commit()
+        
+        return jsonify({'message': 'Đăng ký thành công', 'user_id': user.id}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': f'Lỗi server: {str(e)}'}), 500
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
@@ -377,8 +381,10 @@ def ai_prediction():
 
 
 
+# Tạo bảng khi khởi động
+with app.app_context():
+    db.create_all()
+
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
     port = int(os.getenv('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
