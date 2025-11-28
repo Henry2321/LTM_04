@@ -8,16 +8,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, addDoc, getDoc, collection, query, where, getDocs,deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        window.firebase = {
-            initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
-            getFirestore, doc, addDoc, getDoc, collection, query, where, getDocs,deleteDoc, serverTimestamp
-        };
-    </script>
+
     <style>
         body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #e8f5e8 0%, #f1f8e9 100%); }
         .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
@@ -148,33 +139,8 @@
         let uploadedFile = null;
         let currentReceiptInfo = null;
         let currentRawText = null;
-        let db;
-        let auth;
-        let userId;
 
         document.addEventListener('DOMContentLoaded', async () => {
-            // Khởi tạo Firebase
-            const firebaseConfig = {
-  apiKey: "AIzaSyDousMef4BCkpjkH2NNsPYYt5pywPneE-U",
-  authDomain: "hoadonocr-696fb.firebaseapp.com",
-  projectId: "hoadonocr-696fb",
-  storageBucket: "hoadonocr-696fb.firebasestorage.app",
-  messagingSenderId: "502220052225",
-  appId: "1:502220052225:web:e8ea301cfbbb60c93ead00",
-  measurementId: "G-B1FFZ64H5N"
-};
-            const { initializeApp, getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, getFirestore } = window.firebase;
-            const app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    userId = user.uid;
-                } else {
-                    await signInAnonymously(auth);
-                }
-            });
 
             // Gắn sự kiện cho các nút
             document.getElementById('inputTab').addEventListener('click', () => switchTab('input'));
@@ -572,30 +538,46 @@
         alert('Không có dữ liệu để lưu!');
         return;
     }
-    if (!userId) {
-        alert('Không thể lưu. Vui lòng đăng nhập.');
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+        alert('Vui lòng đăng nhập để lưu hóa đơn!');
+        window.location.href = 'index.html';
         return;
     }
 
-    const docData = {
+    const receiptData = {
         storeName: currentReceiptInfo.storeName,
         date: currentReceiptInfo.date,
         total: currentReceiptInfo.total,
         items: currentReceiptInfo.items,
-        rawText: currentRawText,
-        timestamp: window.firebase.serverTimestamp(),
-        userId: userId,
+        rawText: currentRawText
     };
 
     try {
-        const { collection, addDoc } = window.firebase;
-        await addDoc(collection(db, "users", userId, "invoices"), docData);
-        alert('✅ Đã lưu hóa đơn thành công!');
-        document.getElementById('saveBtn').classList.add('hidden');
-        loadSavedBills();
+        const API_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '0.0.0.0') 
+          ? 'http://localhost:5000/api' 
+          : 'https://ltm-04.onrender.com/api';
+        const response = await fetch(`${API_URL}/hoa-don`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(receiptData)
+        });
+
+        if (response.ok) {
+            alert('✅ Đã lưu hóa đơn thành công!');
+            document.getElementById('saveBtn').classList.add('hidden');
+            loadSavedBills();
+        } else {
+            const error = await response.json();
+            alert(`❌ Lỗi: ${error.message || 'Không thể lưu hóa đơn'}`);
+        }
     } catch (error) {
-        console.error(" Lỗi khi lưu tài liệu:", error);
-        alert(' Lỗi khi lưu hóa đơn.');
+        console.error('Lỗi khi lưu hóa đơn:', error);
+        alert('❌ Không thể kết nối đến server!');
     }
 }
 
@@ -605,90 +587,115 @@
     const searchBox = document.getElementById('searchBox');
     const searchTerm = searchBox.value.toLowerCase();
 
-    if (!userId) {
-        container.innerHTML = `<p class="text-center text-gray-400 py-4">Đang kết nối...</p>`;
+    const token = localStorage.getItem('token');
+    if (!token) {
+        container.innerHTML = `<p class="text-center text-gray-400 py-4">Vui lòng đăng nhập để xem hóa đơn đã lưu.</p>`;
         return;
     }
 
-    let allBills = [];
     try {
-        const { collection, query, getDocs } = window.firebase;
-        const q = query(collection(db, "users", userId, "invoices"));  // 🔹 dùng path chuẩn
-        const querySnapshot = await getDocs(q);
-        querySnapshot.forEach(doc => {
-            allBills.push({ id: doc.id, ...doc.data() });
+        const API_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '0.0.0.0') 
+          ? 'http://localhost:5000/api' 
+          : 'https://ltm-04.onrender.com/api';
+        const response = await fetch(`${API_URL}/hoa-don?search=${encodeURIComponent(searchTerm)}`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
         });
-    } catch (error) {
-        console.error(" Lỗi khi tải hóa đơn:", error);
-        container.innerHTML = `<p class="text-center text-red-500 py-4">Lỗi khi tải hóa đơn.</p>`;
-        return;
-    }
 
-    const filteredBills = allBills.filter(bill =>
-        (bill.storeName && bill.storeName.toLowerCase().includes(searchTerm)) ||
-        (bill.date && bill.date.includes(searchTerm)) ||
-        (bill.total && String(bill.total).includes(searchTerm))
-    );
+        if (!response.ok) {
+            throw new Error('Không thể tải hóa đơn');
+        }
 
-    if (filteredBills.length === 0) {
-        container.innerHTML = `<p class="text-center text-gray-400 py-4">Không tìm thấy hóa đơn nào.</p>`;
-        return;
-    }
+        const bills = await response.json();
 
-    container.innerHTML = filteredBills.map(bill => `
-        <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg mb-2 flex justify-between items-center">
-            <div class="cursor-pointer flex-1" onclick="viewSavedBill('${bill.id}')">
-                <div class="font-semibold text-gray-800">${bill.storeName || 'Không tên'}</div>
-                <div class="text-sm text-gray-500">Ngày: ${bill.date || 'N/A'} - Tổng: ${bill.total || 'N/A'} VNĐ</div>
+        if (bills.length === 0) {
+            container.innerHTML = `<p class="text-center text-gray-400 py-4">Không tìm thấy hóa đơn nào.</p>`;
+            return;
+        }
+
+        container.innerHTML = bills.map(bill => `
+            <div class="p-4 bg-gray-50 border border-gray-200 rounded-lg mb-2 flex justify-between items-center">
+                <div class="cursor-pointer flex-1" onclick="viewSavedBill(${bill.id})">
+                    <div class="font-semibold text-gray-800">${bill.storeName || 'Không tên'}</div>
+                    <div class="text-sm text-gray-500">Ngày: ${bill.date ? bill.date.split('T')[0] : 'N/A'} - Tổng: ${bill.total || 'N/A'} VNĐ</div>
+                </div>
+                <button class="text-red-500 hover:text-red-700 font-bold ml-4" onclick="deleteSavedBill(${bill.id})">🗑️</button>
             </div>
-            <button class="text-red-500 hover:text-red-700 font-bold ml-4" onclick="deleteSavedBill('${bill.id}')">🗑️</button>
-        </div>
-    `).join('');
+        `).join('');
+    } catch (error) {
+        console.error('Lỗi khi tải hóa đơn:', error);
+        container.innerHTML = `<p class="text-center text-red-500 py-4">Lỗi khi tải hóa đơn.</p>`;
+    }
 }
 
 
         async function viewSavedBill(id) {
-    if (!userId) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    
     try {
-        const { doc, getDoc } = window.firebase;
-        const docRef = doc(db, "users", userId, "invoices", id);
-        const docSnap = await getDoc(docRef);
+        const API_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '0.0.0.0') 
+          ? 'http://localhost:5000/api' 
+          : 'https://ltm-04.onrender.com/api';
+        const response = await fetch(`${API_URL}/hoa-don`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
 
-        if (docSnap.exists()) {
-            const bill = docSnap.data();
-            currentReceiptInfo = {
-                storeName: bill.storeName,
-                date: bill.date,
-                total: bill.total,
-                items: bill.items || [],
-            };
-            currentRawText = bill.rawText;
-            displayResults(currentReceiptInfo, currentRawText);
-            document.getElementById('saveBtn').classList.add('hidden');
-            document.getElementById('previewContainer').classList.add('hidden');
-            document.getElementById('copyBtn').classList.remove('hidden');
-            document.getElementById('exportBtn').classList.remove('hidden');
-            switchTab('input'); // Quay lại tab nhập liệu để xem kết quả
+        if (response.ok) {
+            const bills = await response.json();
+            const bill = bills.find(b => b.id === id);
+            
+            if (bill) {
+                currentReceiptInfo = {
+                    storeName: bill.storeName,
+                    date: bill.date.split('T')[0],
+                    total: bill.total,
+                    items: bill.items || [],
+                };
+                currentRawText = bill.rawText;
+                displayResults(currentReceiptInfo, currentRawText);
+                document.getElementById('saveBtn').classList.add('hidden');
+                document.getElementById('previewContainer').classList.add('hidden');
+                document.getElementById('copyBtn').classList.remove('hidden');
+                document.getElementById('exportBtn').classList.remove('hidden');
+                switchTab('input');
+            }
         }
     } catch (error) {
-        console.error(" Lỗi khi xem hóa đơn:", error);
-        alert(' Lỗi khi tải hóa đơn đã lưu.');
+        console.error('Lỗi khi xem hóa đơn:', error);
+        alert('Lỗi khi tải hóa đơn đã lưu.');
     }
 }
 
 async function deleteSavedBill(id) {
-    if (!userId) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
     if (!confirm("Bạn có chắc muốn xóa hóa đơn này không?")) return;
 
     try {
-        const { doc, deleteDoc } = window.firebase;
-        const docRef = doc(db, "users", userId, "invoices", id);
-        await deleteDoc(docRef);
-        alert("✅ Đã xóa hóa đơn thành công!");
-        loadSavedBills(); // Refresh danh sách sau khi xóa
+        const API_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '0.0.0.0') 
+          ? 'http://localhost:5000/api' 
+          : 'https://ltm-04.onrender.com/api';
+        const response = await fetch(`${API_URL}/hoa-don/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (response.ok) {
+            alert("✅ Đã xóa hóa đơn thành công!");
+            loadSavedBills();
+        } else {
+            const error = await response.json();
+            alert(`❌ Lỗi: ${error.message}`);
+        }
     } catch (error) {
-        console.error(" Lỗi khi xóa hóa đơn:", error);
-        alert(" Lỗi khi xóa hóa đơn.");
+        console.error('Lỗi khi xóa hóa đơn:', error);
+        alert('Lỗi khi xóa hóa đơn.');
     }
 }
 

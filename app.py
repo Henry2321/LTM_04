@@ -84,6 +84,17 @@ class VayNo(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+class HoaDon(db.Model):
+    __tablename__ = 'hoa_don'
+    id = db.Column(db.Integer, primary_key=True)
+    nguoi_dung_id = db.Column(db.Integer, db.ForeignKey('nguoi_dung.id'), nullable=False)
+    ten_cua_hang = db.Column(db.String(200), nullable=False)
+    ngay_hoa_don = db.Column(db.DateTime, nullable=False)
+    tong_tien = db.Column(db.Float, nullable=False)
+    san_pham = db.Column(db.Text)  # JSON string
+    van_ban_goc = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 # Auth Routes
 @app.route('/api/auth/register', methods=['POST'])
 def register():
@@ -511,6 +522,84 @@ def get_detailed_statistics():
         } for stat in stats]), 200
     except Exception as e:
         return jsonify({'message': f'Lỗi server: {str(e)}'}), 500
+
+# Receipt OCR Routes
+@app.route('/api/hoa-don', methods=['POST'])
+@jwt_required()
+def save_receipt():
+    try:
+        user_id = int(get_jwt_identity())
+        data = request.get_json()
+        
+        if not data or not data.get('storeName') or not data.get('total'):
+            return jsonify({'message': 'Thiếu thông tin bắt buộc'}), 400
+        
+        import json
+        hoa_don = HoaDon(
+            nguoi_dung_id=user_id,
+            ten_cua_hang=data['storeName'],
+            ngay_hoa_don=datetime.fromisoformat(data['date']) if data.get('date') else datetime.utcnow(),
+            tong_tien=float(data['total']),
+            san_pham=json.dumps(data.get('items', []), ensure_ascii=False),
+            van_ban_goc=data.get('rawText', '')
+        )
+        
+        db.session.add(hoa_don)
+        db.session.commit()
+        
+        return jsonify({'message': 'Lưu hóa đơn thành công', 'id': hoa_don.id}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': f'Lỗi lưu hóa đơn: {str(e)}'}), 500
+
+@app.route('/api/hoa-don', methods=['GET'])
+@jwt_required()
+def get_receipts():
+    try:
+        user_id = int(get_jwt_identity())
+        search = request.args.get('search', '').lower()
+        
+        query = HoaDon.query.filter_by(nguoi_dung_id=user_id)
+        if search:
+            query = query.filter(
+                db.or_(
+                    HoaDon.ten_cua_hang.ilike(f'%{search}%'),
+                    db.cast(HoaDon.ngay_hoa_don, db.String).ilike(f'%{search}%'),
+                    db.cast(HoaDon.tong_tien, db.String).ilike(f'%{search}%')
+                )
+            )
+        
+        hoa_dons = query.order_by(HoaDon.created_at.desc()).all()
+        
+        import json
+        return jsonify([{
+            'id': hd.id,
+            'storeName': hd.ten_cua_hang,
+            'date': hd.ngay_hoa_don.isoformat(),
+            'total': float(hd.tong_tien),
+            'items': json.loads(hd.san_pham) if hd.san_pham else [],
+            'rawText': hd.van_ban_goc or ''
+        } for hd in hoa_dons]), 200
+    except Exception as e:
+        return jsonify({'message': f'Lỗi tải hóa đơn: {str(e)}'}), 500
+
+@app.route('/api/hoa-don/<int:receipt_id>', methods=['DELETE'])
+@jwt_required()
+def delete_receipt(receipt_id):
+    try:
+        user_id = int(get_jwt_identity())
+        hoa_don = HoaDon.query.filter_by(id=receipt_id, nguoi_dung_id=user_id).first()
+        
+        if not hoa_don:
+            return jsonify({'message': 'Không tìm thấy hóa đơn'}), 404
+        
+        db.session.delete(hoa_don)
+        db.session.commit()
+        
+        return jsonify({'message': 'Xóa hóa đơn thành công'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': f'Lỗi xóa hóa đơn: {str(e)}'}), 500
 
 # Static file routes
 @app.route('/')
