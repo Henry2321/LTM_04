@@ -1171,22 +1171,24 @@
           const tbody = document.getElementById("savingsList");
           tbody.innerHTML = "";
 
-          savings.forEach((saving) => {
-            tbody.innerHTML += `<tr>
-                            <td>${saving.ten_tich_luy}</td>
-                            <td>${formatCurrency(saving.so_tien_muc_tieu)}</td>
-                            <td>${saving.trang_thai}</td>
-                            <td>${saving.ngay_ket_thuc
-                ? new Date(
-                  saving.ngay_ket_thuc
-                ).toLocaleDateString("vi-VN")
-                : "-"
-              }</td>
-                        </tr>`;
-          });
+          if (savings.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #999;">Chưa có mục tiêu tiết kiệm nào</td></tr>';
+          } else {
+            savings.forEach((saving) => {
+              tbody.innerHTML += `<tr>
+                              <td>${saving.ten_tich_luy}</td>
+                              <td>${formatCurrency(saving.so_tien_muc_tieu)}</td>
+                              <td>${saving.trang_thai}</td>
+                              <td>${saving.ngay_ket_thuc ? new Date(saving.ngay_ket_thuc).toLocaleDateString("vi-VN") : "-"}</td>
+                          </tr>`;
+            });
+          }
+        } else {
+          document.getElementById("savingsList").innerHTML = '<tr><td colspan="4" style="text-align: center; color: #f00;">Lỗi kết nối API - Kiểm tra server</td></tr>';
         }
       } catch (error) {
         console.error("Lỗi tải tiết kiệm:", error);
+        document.getElementById("savingsList").innerHTML = '<tr><td colspan="4" style="text-align: center; color: #f00;">Server không phản hồi - Kiểm tra kết nối</td></tr>';
       }
     }
 
