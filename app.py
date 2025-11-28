@@ -5,6 +5,7 @@ from flask_cors import CORS
 from datetime import datetime, timedelta
 import bcrypt
 import os
+import json
 from dotenv import load_dotenv
 from ai_module import full_financial_analysis
 
@@ -534,7 +535,6 @@ def save_receipt():
         if not data or not data.get('storeName') or not data.get('total'):
             return jsonify({'message': 'Thiếu thông tin bắt buộc'}), 400
         
-        import json
         hoa_don = HoaDon(
             nguoi_dung_id=user_id,
             ten_cua_hang=data['storeName'],
@@ -571,7 +571,6 @@ def get_receipts():
         
         hoa_dons = query.order_by(HoaDon.created_at.desc()).all()
         
-        import json
         return jsonify([{
             'id': hd.id,
             'storeName': hd.ten_cua_hang,
