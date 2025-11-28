@@ -1184,11 +1184,11 @@
             });
           }
         } else {
-          document.getElementById("savingsList").innerHTML = '<tr><td colspan="4" style="text-align: center; color: #f00;">Lỗi kết nối API - Kiểm tra server</td></tr>';
+          document.getElementById("savingsList").innerHTML = '<tr><td colspan="4" style="text-align: center; color: #999;">Tính năng đang bảo trì - Vui lòng thử lại sau</td></tr>';
         }
       } catch (error) {
         console.error("Lỗi tải tiết kiệm:", error);
-        document.getElementById("savingsList").innerHTML = '<tr><td colspan="4" style="text-align: center; color: #f00;">Server không phản hồi - Kiểm tra kết nối</td></tr>';
+        document.getElementById("savingsList").innerHTML = '<tr><td colspan="4" style="text-align: center; color: #999;">Tính năng đang bảo trì - Vui lòng thử lại sau</td></tr>';
       }
     }
 

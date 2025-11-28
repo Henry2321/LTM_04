@@ -382,112 +382,135 @@ def ai_prediction():
 @app.route('/api/vay-no', methods=['POST'])
 @jwt_required()
 def create_debt():
-    user_id = int(get_jwt_identity())
-    data = request.get_json()
-    
-    vay_no = VayNo(
-        nguoi_dung_id=user_id,
-        ho_ten_vay_no=data['ho_ten_vay_no'],
-        loai=data['loai'],
-        so_tien=data['so_tien'],
-        lai_suat=data.get('lai_suat', 0),
-        han_tra=datetime.fromisoformat(data['han_tra']) if 'han_tra' in data else None,
-        mo_ta=data.get('mo_ta', '')
-    )
-    
-    db.session.add(vay_no)
-    db.session.commit()
-    
-    return jsonify({'message': 'Tạo khoản vay nợ thành công', 'id': vay_no.id}), 201
+    try:
+        user_id = int(get_jwt_identity())
+        data = request.get_json()
+        
+        if not data or not data.get('ho_ten_vay_no') or not data.get('so_tien'):
+            return jsonify({'message': 'Thiếu thông tin bắt buộc'}), 400
+        
+        vay_no = VayNo(
+            nguoi_dung_id=user_id,
+            ho_ten_vay_no=data['ho_ten_vay_no'],
+            loai=data.get('loai', 'Cho Vay'),
+            so_tien=float(data['so_tien']),
+            lai_suat=float(data.get('lai_suat', 0)),
+            han_tra=datetime.fromisoformat(data['han_tra']) if data.get('han_tra') else None,
+            mo_ta=data.get('mo_ta', '')
+        )
+        
+        db.session.add(vay_no)
+        db.session.commit()
+        
+        return jsonify({'message': 'Tạo khoản vay nợ thành công', 'id': vay_no.id}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': f'Lỗi tạo vay nợ: {str(e)}'}), 500
 
 @app.route('/api/vay-no', methods=['GET'])
 @jwt_required()
 def get_debts():
-    user_id = int(get_jwt_identity())
-    vay_nos = VayNo.query.filter_by(nguoi_dung_id=user_id).all()
-    
-    return jsonify([{
-        'id': vn.id,
-        'ho_ten_vay_no': vn.ho_ten_vay_no,
-        'loai': vn.loai,
-        'so_tien': vn.so_tien,
-        'lai_suat': vn.lai_suat,
-        'trang_thai': vn.trang_thai,
-        'han_tra': vn.han_tra.isoformat() if vn.han_tra else None,
-        'mo_ta': vn.mo_ta
-    } for vn in vay_nos]), 200
+    try:
+        user_id = int(get_jwt_identity())
+        vay_nos = VayNo.query.filter_by(nguoi_dung_id=user_id).all()
+        
+        return jsonify([{
+            'id': vn.id,
+            'ho_ten_vay_no': vn.ho_ten_vay_no,
+            'loai': vn.loai,
+            'so_tien': float(vn.so_tien),
+            'lai_suat': float(vn.lai_suat),
+            'trang_thai': vn.trang_thai,
+            'han_tra': vn.han_tra.isoformat() if vn.han_tra else None,
+            'mo_ta': vn.mo_ta or ''
+        } for vn in vay_nos]), 200
+    except Exception as e:
+        return jsonify({'message': f'Lỗi tải vay nợ: {str(e)}'}), 500
 
 # Savings Routes
 @app.route('/api/tich-luy', methods=['POST'])
 @jwt_required()
 def create_saving():
-    user_id = int(get_jwt_identity())
-    data = request.get_json()
-    
-    tich_luy = TichLuy(
-        nguoi_dung_id=user_id,
-        ten_tich_luy=data['ten_tich_luy'],
-        so_tien_muc_tieu=data['so_tien_muc_tieu'],
-        ngay_ket_thuc=datetime.fromisoformat(data['ngay_ket_thuc']) if 'ngay_ket_thuc' in data else None
-    )
-    
-    db.session.add(tich_luy)
-    db.session.commit()
-    
-    return jsonify({'message': 'Tạo mục tiêu tiết kiệm thành công', 'id': tich_luy.id}), 201
+    try:
+        user_id = int(get_jwt_identity())
+        data = request.get_json()
+        
+        if not data or not data.get('ten_tich_luy') or not data.get('so_tien_muc_tieu'):
+            return jsonify({'message': 'Thiếu thông tin bắt buộc'}), 400
+        
+        tich_luy = TichLuy(
+            nguoi_dung_id=user_id,
+            ten_tich_luy=data['ten_tich_luy'],
+            so_tien_muc_tieu=float(data['so_tien_muc_tieu']),
+            ngay_ket_thuc=datetime.fromisoformat(data['ngay_ket_thuc']) if data.get('ngay_ket_thuc') else None
+        )
+        
+        db.session.add(tich_luy)
+        db.session.commit()
+        
+        return jsonify({'message': 'Tạo mục tiêu tiết kiệm thành công', 'id': tich_luy.id}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': f'Lỗi tạo tiết kiệm: {str(e)}'}), 500
 
 @app.route('/api/tich-luy', methods=['GET'])
 @jwt_required()
 def get_savings():
-    user_id = int(get_jwt_identity())
-    tich_luys = TichLuy.query.filter_by(nguoi_dung_id=user_id).all()
-    
-    return jsonify([{
-        'id': tl.id,
-        'ten_tich_luy': tl.ten_tich_luy,
-        'so_tien_muc_tieu': tl.so_tien_muc_tieu,
-        'trang_thai': tl.trang_thai,
-        'ngay_ket_thuc': tl.ngay_ket_thuc.isoformat() if tl.ngay_ket_thuc else None
-    } for tl in tich_luys]), 200
+    try:
+        user_id = int(get_jwt_identity())
+        tich_luys = TichLuy.query.filter_by(nguoi_dung_id=user_id).all()
+        
+        return jsonify([{
+            'id': tl.id,
+            'ten_tich_luy': tl.ten_tich_luy,
+            'so_tien_muc_tieu': float(tl.so_tien_muc_tieu),
+            'trang_thai': tl.trang_thai,
+            'ngay_ket_thuc': tl.ngay_ket_thuc.isoformat() if tl.ngay_ket_thuc else None
+        } for tl in tich_luys]), 200
+    except Exception as e:
+        return jsonify({'message': f'Lỗi tải tiết kiệm: {str(e)}'}), 500
 
 # Detailed Statistics Route
 @app.route('/api/thong-ke-chi-tiet', methods=['GET'])
 @jwt_required()
 def get_detailed_statistics():
-    user_id = int(get_jwt_identity())
-    month = request.args.get('thang', type=int)
-    year = request.args.get('nam', type=int)
-    
-    if not month or not year:
-        return jsonify({'message': 'Thiếu tháng hoặc năm'}), 400
-    
-    # Tạo khoảng thời gian
-    start_date = datetime(year, month, 1)
-    if month == 12:
-        end_date = datetime(year + 1, 1, 1)
-    else:
-        end_date = datetime(year, month + 1, 1)
-    
-    # Lấy danh mục của user
-    danh_mucs = DanhMuc.query.filter_by(nguoi_dung_id=user_id).all()
-    danh_muc_ids = [dm.id for dm in danh_mucs]
-    
-    # Thống kê theo danh mục
-    stats = db.session.query(
-        DanhMuc.ten_danh_muc,
-        DanhMuc.loai_danh_muc,
-        db.func.sum(GiaoDich.so_tien).label('tong')
-    ).join(GiaoDich).filter(
-        DanhMuc.nguoi_dung_id == user_id,
-        GiaoDich.ngay >= start_date,
-        GiaoDich.ngay < end_date
-    ).group_by(DanhMuc.id, DanhMuc.ten_danh_muc, DanhMuc.loai_danh_muc).all()
-    
-    return jsonify([{
-        'ten_danh_muc': stat.ten_danh_muc,
-        'loai': stat.loai_danh_muc,
-        'tong': stat.tong or 0
-    } for stat in stats]), 200
+    try:
+        user_id = int(get_jwt_identity())
+        month = request.args.get('thang', type=int) or datetime.utcnow().month
+        year = request.args.get('nam', type=int) or datetime.utcnow().year
+        
+        # Tạo khoảng thời gian
+        start_date = datetime(year, month, 1)
+        if month == 12:
+            end_date = datetime(year + 1, 1, 1)
+        else:
+            end_date = datetime(year, month + 1, 1)
+        
+        # Lấy danh mục của user
+        danh_mucs = DanhMuc.query.filter_by(nguoi_dung_id=user_id).all()
+        if not danh_mucs:
+            return jsonify([]), 200
+            
+        danh_muc_ids = [dm.id for dm in danh_mucs]
+        
+        # Thống kê theo danh mục
+        stats = db.session.query(
+            DanhMuc.ten_danh_muc,
+            DanhMuc.loai_danh_muc,
+            db.func.sum(GiaoDich.so_tien).label('tong')
+        ).join(GiaoDich).filter(
+            DanhMuc.nguoi_dung_id == user_id,
+            GiaoDich.ngay >= start_date,
+            GiaoDich.ngay < end_date
+        ).group_by(DanhMuc.id, DanhMuc.ten_danh_muc, DanhMuc.loai_danh_muc).all()
+        
+        return jsonify([{
+            'ten_danh_muc': stat.ten_danh_muc,
+            'loai': stat.loai_danh_muc,
+            'tong': float(stat.tong or 0)
+        } for stat in stats]), 200
+    except Exception as e:
+        return jsonify({'message': f'Lỗi server: {str(e)}'}), 500
 
 # Static file routes
 @app.route('/')
