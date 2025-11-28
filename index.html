@@ -610,7 +610,7 @@
     // Auto-detect API URL based on environment
     const API_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '0.0.0.0') 
       ? 'http://localhost:5000/api' 
-      : 'https://ltm-finalq2.onrender.com/api';
+      : 'https://ltm-04.onrender.com/api';
     let token = localStorage.getItem("token");
 
     // Khởi tạo ứng dụng - luôn hiển thị màn hình đăng nhập trước
@@ -1032,16 +1032,23 @@
           const tbody = document.getElementById("statsList");
           tbody.innerHTML = "";
 
-          stats.forEach((stat) => {
-            tbody.innerHTML += `<tr>
-                            <td>${stat.ten_danh_muc}</td>
-                            <td>${stat.loai}</td>
-                            <td>${formatCurrency(stat.tong)}</td>
-                        </tr>`;
-          });
+          if (stats.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: #999;">Chưa có dữ liệu thống kê</td></tr>';
+          } else {
+            stats.forEach((stat) => {
+              tbody.innerHTML += `<tr>
+                              <td>${stat.ten_danh_muc}</td>
+                              <td>${stat.loai}</td>
+                              <td>${formatCurrency(stat.tong)}</td>
+                          </tr>`;
+            });
+          }
+        } else {
+          document.getElementById("statsList").innerHTML = '<tr><td colspan="3" style="text-align: center; color: #f00;">Lỗi kết nối API</td></tr>';
         }
       } catch (error) {
         console.error("Lỗi tải thống kê:", error);
+        document.getElementById("statsList").innerHTML = '<tr><td colspan="3" style="text-align: center; color: #f00;">Không thể kết nối server</td></tr>';
       }
     }
 
@@ -1101,20 +1108,25 @@
           const tbody = document.getElementById("debtList");
           tbody.innerHTML = "";
 
-          debts.forEach((debt) => {
-            tbody.innerHTML += `<tr>
-                            <td>${debt.ho_ten_vay_no}</td>
-                            <td>${debt.loai}</td>
-                            <td>${formatCurrency(debt.so_tien)}</td>
-                            <td>${debt.trang_thai}</td>
-                            <td>${new Date(debt.han_tra).toLocaleDateString(
-              "vi-VN"
-            )}</td>
-                        </tr>`;
-          });
+          if (debts.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #999;">Chưa có khoản vay nợ nào</td></tr>';
+          } else {
+            debts.forEach((debt) => {
+              tbody.innerHTML += `<tr>
+                              <td>${debt.ho_ten_vay_no}</td>
+                              <td>${debt.loai}</td>
+                              <td>${formatCurrency(debt.so_tien)}</td>
+                              <td>${debt.trang_thai}</td>
+                              <td>${debt.han_tra ? new Date(debt.han_tra).toLocaleDateString("vi-VN") : '-'}</td>
+                          </tr>`;
+            });
+          }
+        } else {
+          document.getElementById("debtList").innerHTML = '<tr><td colspan="5" style="text-align: center; color: #f00;">Lỗi kết nối API</td></tr>';
         }
       } catch (error) {
         console.error("Lỗi tải vay nợ:", error);
+        document.getElementById("debtList").innerHTML = '<tr><td colspan="5" style="text-align: center; color: #f00;">Không thể kết nối server</td></tr>';
       }
     }
 
@@ -1184,11 +1196,11 @@
             });
           }
         } else {
-          document.getElementById("savingsList").innerHTML = '<tr><td colspan="4" style="text-align: center; color: #999;">Tính năng đang bảo trì - Vui lòng thử lại sau</td></tr>';
+          document.getElementById("savingsList").innerHTML = '<tr><td colspan="4" style="text-align: center; color: #f00;">Lỗi kết nối API</td></tr>';
         }
       } catch (error) {
         console.error("Lỗi tải tiết kiệm:", error);
-        document.getElementById("savingsList").innerHTML = '<tr><td colspan="4" style="text-align: center; color: #999;">Tính năng đang bảo trì - Vui lòng thử lại sau</td></tr>';
+        document.getElementById("savingsList").innerHTML = '<tr><td colspan="4" style="text-align: center; color: #f00;">Không thể kết nối server</td></tr>';
       }
     }
 
