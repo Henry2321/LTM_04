@@ -607,8 +607,10 @@
   </div>
 
   <script>
-    window.__API_URL__ = "https://ltm-finalq2.onrender.com";
-    const API_URL = (window.__API_URL__ || (location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? 'http://localhost:5000' : 'https://ltm-finalq2.onrender.com')) + '/api';
+    // Auto-detect API URL based on environment
+    const API_URL = (location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname === '0.0.0.0') 
+      ? 'http://localhost:5000/api' 
+      : 'https://ltm-finalq2.onrender.com/api';
     let token = localStorage.getItem("token");
 
     // Khởi tạo ứng dụng - luôn hiển thị màn hình đăng nhập trước

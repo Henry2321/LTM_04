@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_cors import CORS
@@ -378,7 +378,125 @@ def ai_prediction():
 
     return jsonify(result), 200
 
+# Debt Routes
+@app.route('/api/vay-no', methods=['POST'])
+@jwt_required()
+def create_debt():
+    user_id = int(get_jwt_identity())
+    data = request.get_json()
+    
+    vay_no = VayNo(
+        nguoi_dung_id=user_id,
+        ho_ten_vay_no=data['ho_ten_vay_no'],
+        loai=data['loai'],
+        so_tien=data['so_tien'],
+        lai_suat=data.get('lai_suat', 0),
+        han_tra=datetime.fromisoformat(data['han_tra']) if 'han_tra' in data else None,
+        mo_ta=data.get('mo_ta', '')
+    )
+    
+    db.session.add(vay_no)
+    db.session.commit()
+    
+    return jsonify({'message': 'Tạo khoản vay nợ thành công', 'id': vay_no.id}), 201
 
+@app.route('/api/vay-no', methods=['GET'])
+@jwt_required()
+def get_debts():
+    user_id = int(get_jwt_identity())
+    vay_nos = VayNo.query.filter_by(nguoi_dung_id=user_id).all()
+    
+    return jsonify([{
+        'id': vn.id,
+        'ho_ten_vay_no': vn.ho_ten_vay_no,
+        'loai': vn.loai,
+        'so_tien': vn.so_tien,
+        'lai_suat': vn.lai_suat,
+        'trang_thai': vn.trang_thai,
+        'han_tra': vn.han_tra.isoformat() if vn.han_tra else None,
+        'mo_ta': vn.mo_ta
+    } for vn in vay_nos]), 200
+
+# Savings Routes
+@app.route('/api/tich-luy', methods=['POST'])
+@jwt_required()
+def create_saving():
+    user_id = int(get_jwt_identity())
+    data = request.get_json()
+    
+    tich_luy = TichLuy(
+        nguoi_dung_id=user_id,
+        ten_tich_luy=data['ten_tich_luy'],
+        so_tien_muc_tieu=data['so_tien_muc_tieu'],
+        ngay_ket_thuc=datetime.fromisoformat(data['ngay_ket_thuc']) if 'ngay_ket_thuc' in data else None
+    )
+    
+    db.session.add(tich_luy)
+    db.session.commit()
+    
+    return jsonify({'message': 'Tạo mục tiêu tiết kiệm thành công', 'id': tich_luy.id}), 201
+
+@app.route('/api/tich-luy', methods=['GET'])
+@jwt_required()
+def get_savings():
+    user_id = int(get_jwt_identity())
+    tich_luys = TichLuy.query.filter_by(nguoi_dung_id=user_id).all()
+    
+    return jsonify([{
+        'id': tl.id,
+        'ten_tich_luy': tl.ten_tich_luy,
+        'so_tien_muc_tieu': tl.so_tien_muc_tieu,
+        'trang_thai': tl.trang_thai,
+        'ngay_ket_thuc': tl.ngay_ket_thuc.isoformat() if tl.ngay_ket_thuc else None
+    } for tl in tich_luys]), 200
+
+# Detailed Statistics Route
+@app.route('/api/thong-ke-chi-tiet', methods=['GET'])
+@jwt_required()
+def get_detailed_statistics():
+    user_id = int(get_jwt_identity())
+    month = request.args.get('thang', type=int)
+    year = request.args.get('nam', type=int)
+    
+    if not month or not year:
+        return jsonify({'message': 'Thiếu tháng hoặc năm'}), 400
+    
+    # Tạo khoảng thời gian
+    start_date = datetime(year, month, 1)
+    if month == 12:
+        end_date = datetime(year + 1, 1, 1)
+    else:
+        end_date = datetime(year, month + 1, 1)
+    
+    # Lấy danh mục của user
+    danh_mucs = DanhMuc.query.filter_by(nguoi_dung_id=user_id).all()
+    danh_muc_ids = [dm.id for dm in danh_mucs]
+    
+    # Thống kê theo danh mục
+    stats = db.session.query(
+        DanhMuc.ten_danh_muc,
+        DanhMuc.loai_danh_muc,
+        db.func.sum(GiaoDich.so_tien).label('tong')
+    ).join(GiaoDich).filter(
+        DanhMuc.nguoi_dung_id == user_id,
+        GiaoDich.ngay >= start_date,
+        GiaoDich.ngay < end_date
+    ).group_by(DanhMuc.id, DanhMuc.ten_danh_muc, DanhMuc.loai_danh_muc).all()
+    
+    return jsonify([{
+        'ten_danh_muc': stat.ten_danh_muc,
+        'loai': stat.loai_danh_muc,
+        'tong': stat.tong or 0
+    } for stat in stats]), 200
+
+# Static file routes
+@app.route('/')
+def index():
+    return send_from_directory('.', 'index.html')
+
+@app.route('/<path:filename>')
+def static_files(filename):
+    return send_from_directory('.', filename)
 
 # Tạo bảng khi khởi động
 with app.app_context():
@@ -386,4 +504,4 @@ with app.app_context():
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=True)
